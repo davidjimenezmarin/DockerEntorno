@@ -1,0 +1,88 @@
+ version: '3.8'
+
+ services:
+   mysql:
+     image: mysql:5.7
+     container_name: mysql
+     volumes:
+       - db_data:/var/lib/mysql
+     environment:
+       MYSQL_ROOT_PASSWORD: ${WORDPRESS_PASSWORD}
+       MYSQL_DATABASE: ${WORDPRESS_DATABASE_NAME}
+       MYSQL_USER: ${WORDPRESS_DATABASE_USER}
+       MYSQL_PASSWORD: ${WORDPRESS_PASSWORD}
+     networks:
+       - backend-network
+     restart: unless-stopped
+     healthcheck:
+       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${WORDPRESS_PASSWORD}"]
+       interval: 5s
+       timeout: 10s
+       retries: 10
+
+   wordpress:
+     image: wordpress:latest
+     container_name: wordpress
+     depends_on:
+       mysql:
+         condition: service_healthy
+     volumes:
+       - wordpress_data:/var/www/html
+     environment:
+       WORDPRESS_DB_HOST: ${WORDPRESS_DATABASE_HOST}
+       WORDPRESS_DB_USER: ${WORDPRESS_DATABASE_USER}
+       WORDPRESS_DB_PASSWORD: ${WORDPRESS_PASSWORD}
+       WORDPRESS_DB_NAME: ${WORDPRESS_DATABASE_NAME}
+       WORDPRESS_TITLE: ${WORDPRESS_BLOG_NAME}
+       WORDPRESS_USER: ${WORDPRESS_USERNAME}
+       WORDPRESS_PASSWORD: ${WORDPRESS_PASSWORD}
+       WORDPRESS_EMAIL: ${WORDPRESS_EMAIL}
+     networks:
+       - frontend-network
+       - backend-network
+     ports:
+       - "80-80"
+     restart: unless-stopped
+
+   phpmyadmin:
+     image: phpmyadmin/phpmyadmin
+     container_name: phpmyadmin
+     depends_on:
+       - mysql
+     environment:
+       PMA_HOST: ${WORDPRESS_DATABASE_HOST}
+       PMA_PORT: 3360
+     ports:
+       - "8080:80"
+     networks:
+       - frontend-network
+       - backend-network
+     ports:
+       - "8080:80"
+     restart: unless-stopped
+
+   https-portal:
+     image: steveltn/https-portal:1
+     container_name: https-portal
+     depends_on:
+       - wordpress
+     environment:
+       DOMAINS: "wordpress.local -> http://wordpress:80"
+       STAGE: "local"
+     volumes:
+       - certs:/var/lib/https-portal
+     networks:
+       - frontend-network
+     ports:
+       - "80:80"
+       - "443:443"
+     restart: unless-stopped
+
+ volumes:
+  db_data:
+  wordpress_data:
+  certs:
+
+ networks:
+   frontend-network:
+   backend-network:
